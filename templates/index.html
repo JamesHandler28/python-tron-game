@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Tron</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            background-color: #121212;
+            color: #f0f0f0;
+            overflow: hidden;
+        }
+
+        #main-container {
+            display: flex;
+            gap: 2rem;
+            align-items: flex-start;
+        }
+
+        #lobby {
+            background-color: #1e1e1e;
+            padding: 2rem 3rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+        h1 {
+            color: #e60000;
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+        }
+        button {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: white;
+            background-color: #e60000;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        /* --- Game View --- */
+        #game-view {
+            position: relative;
+        }
+        #game-board {
+            display: grid;
+            background-color: #000;
+            border: 2px solid #555;
+            padding: 0;
+            line-height: 0;
+            box-sizing: border-box; 
+        }
+        .grid-cell {
+            background-color: #000;
+            box-sizing: border-box;
+        }
+        
+        /* --- Scoreboard --- */
+        #scoreboard {
+            width: 250px;
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid #333;
+        }
+        #scoreboard h2 {
+            margin-top: 0;
+            text-align: center;
+            border-bottom: 2px solid #444;
+            padding-bottom: 0.5rem;
+        }
+        .player-status {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+        .player-color-box {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #fff;
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+        .player-name {
+            font-weight: bold;
+            flex-grow: 1;
+        }
+        .player-state {
+            font-weight: bold;
+        }
+        .player-state.alive { color: #4CAF50; }
+        .player-state.dead { color: #F44336; text-decoration: line-through; }
+
+        /* --- Overlays --- */
+        .game-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+        }
+        #game-over-message { display: none; }
+        #countdown-overlay { display: none; font-size: 8rem; }
+        #winner-text { font-size: 2.5rem; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+
+    <div id="lobby">
+        <h1>TRON</h1>
+        <label for="player-count">Choose total players (2-8):</label>
+        <select id="player-count">
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4" selected>4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+        </select>
+        <br><br>
+        <button id="start-game-btn">Start Game</button>
+        <p style="color: #888; margin-top: 1rem;">
+            (You are <span style="color: #FF0000; font-weight: bold;">Player 0 - human</span>)
+        </p>
+    </div>
+
+    <div id="main-container" style="display: none;">
+        <div id="game-view">
+            <div id="game-board"></div>
+            <div id="countdown-overlay" class="game-overlay">3</div>
+            <div id="game-over-message" class="game-overlay">
+                <h2 id="winner-text">GAME OVER</h2>
+                <button id="play-again-btn">Play Again</button>
+            </div>
+        </div>
+        <div id="scoreboard">
+            <h2>Players</h2>
+            <div id="player-list"></div>
+        </div>
+    </div>
+
+    <!-- === JAVASCRIPT SECTION === -->
+    <script>
+        // --- DOM Elements ---
+        const lobby = document.getElementById('lobby');
+        const mainContainer = document.getElementById('main-container');
+        const gameView = document.getElementById('game-view');
+        const startBtn = document.getElementById('start-game-btn');
+        const playerCountSelect = document.getElementById('player-count');
+        const gameBoard = document.getElementById('game-board');
+        const playerList = document.getElementById('player-list');
+        const gameOverMessage = document.getElementById('game-over-message');
+        const winnerText = document.getElementById('winner-text');
+        const playAgainBtn = document.getElementById('play-again-btn');
+        const countdownOverlay = document.getElementById('countdown-overlay');
+        
+        // --- Game State ---
+        let gameState = {};
+        let gameLoopInterval = null;
+        let gridCells = [];
+        const GAME_TICK_MS = 100; // Game speed (10 times per second)
+        
+        // === NEW: Input Buffer ===
+        let bufferedMove = null; // Stores the player's next move
+
+        // --- Event Listeners ---
+        startBtn.addEventListener('click', startGame);
+        playAgainBtn.addEventListener('click', () => {
+            window.location.reload();
+        });
+        
+        // === UPDATED: Board Size Calculation ===
+        function getOptimalBoardSize() {
+            const scoreboardWidth = 250; 
+            const mainGap = 32;          
+            // === CHANGE IS HERE ===
+            const safetyMargin = 30;     // Much smaller margin
+            // ======================
+            
+            const availableWidth = window.innerWidth - scoreboardWidth - mainGap - safetyMargin;
+            const availableHeight = window.innerHeight - safetyMargin;
+            
+            const minDimension = Math.min(availableWidth, availableHeight);
+            
+            return Math.floor(minDimension);
+        }
+
+        async function startGame() {
+            try {
+                const playerCount = playerCountSelect.value;
+                
+                // === This is your "cell size" map ===
+                const gridSizeMap = {
+                    '2': 25,  // 2 players = 30x30 grid (Large cells)
+                    '3': 30,
+                    '4': 32,
+                    '5': 35,
+                    '6': 37,
+                    '7': 40,
+                    '8': 45  // 8 players = 60x60 grid (Smaller cells)
+                };
+                // ===================================
+                
+                const dynamicGridSize = gridSizeMap[playerCount];
+                const boardPixelSize = getOptimalBoardSize();
+                
+                const response = await fetch('/start-game', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        playerCount: playerCount,
+                        gridSize: dynamicGridSize 
+                    }),
+                });
+                
+                if (!response.ok) throw new Error('Server responded with an error');
+
+                const data = await response.json();
+                gameState = data.initialState;
+                
+                lobby.style.display = 'none';
+                mainContainer.style.display = 'flex';
+                
+                buildGrid(dynamicGridSize, boardPixelSize);
+                
+                drawGame(gameState);
+                updateScoreboard(gameState);
+                
+                window.addEventListener('keydown', handleKeydown);
+                runCountdown();
+
+            } catch (error) {
+                console.error('Error starting game:', error);
+            }
+        }
+
+        function buildGrid(gridSize, boardPixelSize) {
+            gameBoard.innerHTML = '';
+            gridCells = [];
+            
+            gameBoard.style.width = `${boardPixelSize}px`;
+            gameBoard.style.height = `${boardPixelSize}px`;
+
+            gameBoard.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+            gameBoard.style.gridTemplateRows = `repeat(${gridSize}, 1fr)`;
+
+            for (let y = 0; y < gridSize; y++) {
+                let row = [];
+                for (let x = 0; x < gridSize; x++) {
+                    const cell = document.createElement('span');
+                    cell.className = 'grid-cell';
+                    gameBoard.appendChild(cell);
+                    row.push(cell);
+                }
+                gridCells.push(row);
+            }
+        }
+
+        function runCountdown() {
+            let count = 3;
+            countdownOverlay.textContent = count;
+            countdownOverlay.style.display = 'flex';
+
+            const countdownTimer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownOverlay.textContent = count;
+                } else if (count === 0) {
+                    countdownOverlay.textContent = 'GO!';
+                } else {
+                    clearInterval(countdownTimer);
+                    countdownOverlay.style.display = 'none';
+                    // Start the game loop
+                    gameLoopInterval = setInterval(gameLoop, GAME_TICK_MS);
+                }
+            }, 1000);
+        }
+
+        // === UPDATED: Input Logic ===
+        async function gameLoop() {
+            if (gameState.game_over) {
+                showGameOver();
+                return;
+            }
+            try {
+                // 1. Send the buffered move (if one exists)
+                if (bufferedMove) {
+                    await fetch('/submit-move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ direction: bufferedMove }),
+                    });
+                    bufferedMove = null; // Clear the buffer
+                }
+
+                // 2. Tick the game and get the new state
+                const response = await fetch('/game-tick');
+                if (!response.ok) throw new Error('Failed to fetch game tick');
+                
+                gameState = await response.json();
+                drawGame(gameState);
+                updateScoreboard(gameState);
+
+            } catch (error) {
+                console.error('Error in game loop:', error);
+                clearInterval(gameLoopInterval);
+            }
+        }
+
+        function updateScoreboard(state) {
+            playerList.innerHTML = '';
+            state.players.forEach(p => {
+                const status = p.is_alive ? 'ALIVE' : 'DEAD';
+                const statusClass = p.is_alive ? 'alive' : 'dead';
+                const playerName = p.name.replace('_bot', '');
+                
+                const playerRow = `
+                    <div class="player-status">
+                        <div class="player-color-box" style="background-color: ${p.color};"></div>
+                        <span class="player-name">P${p.id}: ${playerName}</span>
+                        <span class="player-state ${statusClass}">${status}</span>
+                    </div>
+                `;
+                playerList.innerHTML += playerRow;
+            });
+        }
+
+        function drawGame(state) {
+            const gridSize = state.grid_size; 
+            const emptyColor = '#000';
+
+            if (gridCells.length === 0) return; 
+            if (gridCells.length !== gridSize) return;
+
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    gridCells[y][x].style.backgroundColor = emptyColor;
+                    gridCells[y][x].style.outline = 'none';
+                }
+            }
+
+            state.players.forEach(player => {
+                const trailColor = player.is_alive ? player.color + '80' : player.color + '40';
+                
+                player.trail.forEach(([x, y]) => {
+                    if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+                        gridCells[y][x].style.backgroundColor = trailColor;
+                    }
+                });
+
+                if (player.is_alive) {
+                    const [x, y] = [player.x, player.y];
+                    if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+                        gridCells[y][x].style.backgroundColor = player.color;
+                        if (player.id === 0) {
+                            gridCells[y][x].style.outline = '2px solid white';
+                        }
+                    }
+                }
+            });
+        }
+
+        // === UPDATED: Input Logic ===
+        function handleKeydown(e) {
+            // This function now *only* sets the buffer. It's instant.
+            if (gameState.game_over) return;
+            let direction = null;
+            switch(e.key) {
+                case 'ArrowUp': direction = 'UP'; break;
+                case 'ArrowDown': direction = 'DOWN'; break;
+                case 'ArrowLeft': direction = 'LEFT'; break;
+                case 'ArrowRight': direction = 'RIGHT'; break;
+                default: return;
+            }
+            e.preventDefault();
+            
+            // Set the buffer. This will be sent at the start of the next gameLoop.
+            // This overwrites any previous key press that hasn't been sent yet.
+            bufferedMove = direction;
+        }
+
+        function showGameOver() {
+            if (gameLoopInterval) {
+                clearInterval(gameLoopInterval);
+                gameLoopInterval = null;
+            }
+            window.removeEventListener('keydown', handleKeydown);
+            countdownOverlay.style.display = 'none';
+
+            if (gameState.winner === 'DRAW') {
+                winnerText.textContent = "IT'S A DRAW!";
+                winnerText.style.color = '#FFFFFF';
+            } else {
+                const winnerPlayer = gameState.players[gameState.winner];
+                winnerText.textContent = `${winnerPlayer.name.replace('_bot', '')} WINS!`;
+                winnerText.style.color = winnerPlayer.color;
+            }
+            gameOverMessage.style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
