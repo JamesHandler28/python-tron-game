@@ -1,4 +1,7 @@
 import random
+import sys
+import os
+import math
 
 # -----------------------------------------------
 # --- PLAYER CLASS ---
@@ -68,16 +71,34 @@ class Game:
 
     def _initialize_players(self):
         """
-        Creates players from the provided player_config.
+        Creates players from the provided player_config, ensuring
+        they don't spawn too close to walls or each other.
         """
-        start_margin = 3
-        
+        start_margin = 5  # Min 5 cells from wall (increased padding)
+        min_dist = 10     # Min 10 cells from other players
+
+        # Keep track of spawn points just for this function
+        spawn_points = []
+
         for i, config in enumerate(self.player_config):
-            while True:
+            
+            # Try 100 times to find a good spot
+            for _ in range(100): 
                 x = random.randint(start_margin, self.grid_size - 1 - start_margin)
                 y = random.randint(start_margin, self.grid_size - 1 - start_margin)
                 
-                if (x, y) not in self.occupied_coords:
+                # --- NEW SAFE SPAWN CHECK ---
+                # Check distance from other spawn points
+                is_safe = True
+                for (sx, sy) in spawn_points:
+                    dist = math.sqrt((x - sx)**2 + (y - sy)**2)
+                    if dist < min_dist:
+                        is_safe = False
+                        break
+                # --- END NEW CHECK ---
+                
+                # If it's a safe distance, use this spot
+                if is_safe:
                     direction = random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
                     
                     # Create player using the config
@@ -92,7 +113,28 @@ class Game:
                     
                     self.players.append(player)
                     self.occupied_coords.add((x, y))
-                    break
+                    spawn_points.append((x, y)) # Add to our local list for checking
+                    break # This breaks out of the "for _ in range(100)" loop
+            
+            # This 'else' belongs to the 'for _ in range(100)' loop
+            # It only runs if the loop finishes without 'break'-ing
+            else:
+                # Fallback: If 100 tries fail, just place the player anywhere
+                # to prevent a crash. This should be rare.
+                print(f"Warning: Could not find a safe spawn for player {i}. Placing randomly.")
+                x = random.randint(start_margin, self.grid_size - 1 - start_margin)
+                y = random.randint(start_margin, self.grid_size - 1 - start_margin)
+                direction = random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
+                player = Player(
+                    id=i,
+                    x=x,
+                    y=y,
+                    direction=direction,
+                    name=config['name'],
+                    color=config['color']
+                )
+                self.players.append(player)
+                self.occupied_coords.add((x, y))
         
     def submit_move(self, player_id, direction):
         if 0 <= player_id < len(self.players):
@@ -160,6 +202,7 @@ class Game:
                     'name': p.name, # <-- NEW
                     'x': p.x,
                     'y': p.y,
+                    'direction': p.direction,
                     'is_alive': p.is_alive,
                     'trail': p.trail,
                     'color': p.color
@@ -168,3 +211,33 @@ class Game:
             'game_over': self.game_over,
             'winner': self.winner
         }
+        
+    def _generate_start_positions(self, num_players):
+        """
+        Generates a list of (x, y, directiton) tuples
+        that are not too close to each other or the walls
+        """
+        padding = 5
+        min_dist = 5
+        
+        positions = []
+        
+        for _ in range(num_players):
+            for _ in range(100):
+                x = random.randint(padding, self.grid_size - 1 - padding)
+                y = random.randint(padding, self.grid_size - 1 - padding)
+                
+                is_safe = True
+                for (px, py, p_dir) in positions:
+                    dist = math.sqrt((x - px)**2 + (y - py)**2)
+                    if dist < min_dist:
+                        is_safe = False
+                        break
+                
+                if is_safe:
+                    break
+            
+            direction = random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
+            positions.append((x, y, direction))
+        
+        return positions

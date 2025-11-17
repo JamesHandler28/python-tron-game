@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script type="text/javascript" src="/eel.js"></script>
+
+    <title>Python Tron</title>
+    <style>
+        /* --- 1. NEW FONT --- */
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+
+        /* --- 2. NEW BODY & FONT --- */
+        body {
+            font-family: 'Orbitron', sans-serif; /* <-- New Font */
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            background-color: #121212;
+            color: #f0f0f0;
+            overflow: hidden;
+        }
+
+        #main-container {
+            display: flex;
+            gap: 2rem;
+            align-items: flex-start;
+            /* Apply font to game UI too */
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* --- 3. NEW LOBBY BOX --- */
+        #lobby {
+            background-color: #111; /* Darker */
+            padding: 2rem 3rem;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid #e60000;
+            box-shadow: 0 0 15px #e60000, 0 0 30px #e60000 inset;
+        }
+
+        /* --- 4. NEW ANIMATION --- */
+        @keyframes pulse-glow {
+            0% { text-shadow: 0 0 5px #ff0000, 0 0 10px #ff0000, 0 0 20px #ff0000; }
+            50% { text-shadow: 0 0 10px #ff0000, 0 0 30px #ff0000, 0 0 60px #e60000; }
+            100% { text-shadow: 0 0 5px #ff0000, 0 0 10px #ff0000, 0 0 20px #ff0000; }
+        }
+
+        /* --- 5. NEW GLOWING TITLE --- */
+        h1 {
+            color: #ff3333; /* Brighter red */
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+            text-shadow:
+                0 0 5px #ff0000,
+                0 0 10px #ff0000,
+                0 0 20px #ff0000,
+                0 0 40px #e60000;
+            animation: pulse-glow 3s ease-in-out infinite;
+        }
+        
+        /* --- 6. NEW BUTTON STYLES --- */
+        button {
+            font-family: 'Orbitron', sans-serif; /* Make sure buttons use font */
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: white;
+            background-color: #e60000;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+
+        /* Base button hover */
+        button:hover {
+            background-color: #c00000;
+            box-shadow: 0 0 10px #ff0000;
+        }
+        
+        /* New "Wireframe" Start Button */
+        #start-btn {
+            color: #e60000; /* Red text */
+            background-color: transparent; /* No background */
+            border: 2px solid #e60000; /* Red border */
+            box-shadow: 0 0 5px #e60000;
+            margin-top: 2rem;
+            width: 100%;
+        }
+        #start-btn:hover {
+            background-color: #e60000; /* Fill red on hover */
+            color: #111; /* Dark text on hover */
+            box-shadow: 0 0 10px #ff0000, 0 0 20px #ff0000;
+        }
+
+
+        /* --- 7. ALL OTHER STYLES (Unchanged) --- */
+        /* These are your existing styles for the rest of the UI */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr; /* Changed to 1 column */
+            gap: 1.5rem;
+            margin-top: 2rem;
+            text-align: left;
+        }
+
+        .setting {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .setting label {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .setting-control {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #2a2a2a;
+            padding: 0.5rem;
+            border-radius: 6px;
+        }
+
+        .control-btn {
+            font-size: 1.2rem;
+            font-weight: bold;
+            background: #444;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .control-btn:hover {
+            background: #555;
+            box-shadow: none;
+        }
+
+        .control-value {
+            font-size: 1.2rem;
+            font-weight: bold;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        #game-container {
+            position: relative;
+            background-color: #000;
+            border: 2px solid #333;
+        }
+        canvas {
+            display: block;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            background-color: rgba(0, 0, 0, 0.85);
+            color: white;
+            font-size: 5rem;
+            font-weight: bold;
+        }
+
+        #countdown {
+            font-size: 8rem;
+        }
+
+        #game-over-message {
+            display: none; 
+            text-align: center;
+        }
+        #winnerText {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        #play-again-btn {
+            font-size: 1.5rem;
+            padding: 1rem 2rem;
+        }
+
+        #player-list {
+            width: 250px;
+            background-color: #1e1e1e;
+            padding: 1rem;
+            border-radius: 8px;
+            display: none; 
+        }
+        #player-list h2 {
+            margin-top: 0;
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 0.5rem;
+        }
+        .player-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+        .player-color-box {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 2px solid #fff;
+        }
+        .player-item.dead {
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="lobby">
+        <h1>PYTHON TRON</h1>
+        <div class="settings-grid">
+            <div class="setting">
+                <label>Players</label>
+                <div class="setting-control">
+                    <button class="control-btn" id="players-minus">-</button>
+                    <span class="control-value" id="players-value">4</span>
+                    <button class="control-btn" id="players-plus">+</button>
+                </div>
+            </div>
+        </div>
+        <button id="start-btn">START GAME</button>
+    </div>
+
+    <div id="main-container" style="display: none;">
+        <div id="game-container">
+            <canvas id="game-canvas"></canvas>
+            <div id="countdown-overlay" class="overlay">
+                <span id="countdown">3</span>
+            </div>
+            <div id="game-over-message" class="overlay">
+                <span id="winnerText">PLAYER WINS!</span>
+                <button id="play-again-btn">Play Again</button>
+            </div>
+        </div>
+        <div id="player-list">
+            <h2>Players</h2>
+            <ul id="player-list-ul" style="list-style: none; padding: 0;">
+                </ul>
+        </div>
+    </div>
+
+
+    <script>
+        // DOM Elements
+        const lobby = document.getElementById('lobby');
+        const mainContainer = document.getElementById('main-container');
+        const startBtn = document.getElementById('start-btn');
+        const gameContainer = document.getElementById('game-container');
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const playerList = document.getElementById('player-list');
+        const playerListUl = document.getElementById('player-list-ul');
+        const countdownOverlay = document.getElementById('countdown-overlay');
+        const countdown = document.getElementById('countdown');
+        const gameOverMessage = document.getElementById('game-over-message');
+        const winnerText = document.getElementById('winnerText');
+        const playAgainBtn = document.getElementById('play-again-btn');
+
+        // Lobby Settings
+        const playersValue = document.getElementById('players-value');
+        const playersMinus = document.getElementById('players-minus');
+        const playersPlus = document.getElementById('players-plus');
+
+        let playerCount = 4;
+        let gridSize = 50;
+
+        // Game State
+        let CELL_SIZE = 12; // Size of each grid cell in pixels
+        let gameState = null;
+        let gameLoopInterval = null;
+        let bufferedMove = null;
+
+        const keyState = { 'UP': false, 'DOWN': false, 'LEFT': false, 'RIGHT': false }
+        let lastMoveDirection = null;
+        
+        // --- LOBBY LOGIC (No changes) ---
+        playersMinus.onclick = () => updateValue(playersValue, -1, 2, 8);
+        playersPlus.onclick = () => updateValue(playersValue, 1, 2, 8);
+        
+        function updateValue(element, change, min, max) {
+            let value = parseInt(element.textContent);
+            value = Math.max(min, Math.min(max, value + change));
+            element.textContent = value;
+            if (element === playersValue) playerCount = value;
+        }
+
+        startBtn.onclick = startGame;
+        playAgainBtn.onclick = () => location.reload();
+
+        
+        // --- CORE GAME FUNCTIONS (CHANGED) ---
+
+        async function startGame() {
+            try {
+                const dynamicPlayerCount = parseInt(playersValue.textContent);
+
+                // ### CHANGE 1: 'fetch' is replaced with 'eel.start_game()' ###
+                //
+                // We call the Python function 'start_game' directly and 'await' its response.
+                // The '()' at the end is required by Eel.
+                gameState = await eel.start_game(dynamicPlayerCount)();
+
+                if (!gameState) {
+                    throw new Error('Failed to start game. Server returned no data.');
+                }
+                
+                lobby.style.display = 'none';
+                mainContainer.style.display = 'flex';
+                playerList.style.display = 'block';
+                gameOverMessage.style.display = 'none';
+                countdownOverlay.style.display = 'flex';
+                
+                // Setup canvas
+                const canvasSize = window.innerHeight * 0.90;
+
+                canvas.width = canvasSize;
+                canvas.height = canvasSize;
+                gameContainer.style.width = `${canvasSize}px`;
+                gameContainer.style.height = `${canvasSize}px`;
+
+                CELL_SIZE = canvasSize / gameState.grid_size;
+
+                drawGame();
+                updatePlayerList();
+                
+                // Start Countdown
+                let count = 3;
+                countdown.textContent = count;
+                const countdownInterval = setInterval(() => {
+                    count--;
+                    countdown.textContent = count;
+                    if (count === 0) {
+                        clearInterval(countdownInterval);
+                        countdownOverlay.style.display = 'none';
+                        
+                        // Start the game loop
+                        window.addEventListener('keydown', handleKeydown);
+                        window.addEventListener('keyup', handleKeyup);
+                        gameLoopInterval = setInterval(gameLoop, 100); // 10 ticks per second
+                    }
+                }, 1000);
+
+            } catch (error) {
+                console.error('Error starting game:', error);
+                alert('Could not start game. Check console for details.');
+            }
+        }
+
+        async function gameLoop() {
+            if (!gameState || gameState.game_over) {
+                if (gameState.game_over) showGameOver();
+                return;
+            }
+
+            try {
+                let moveToSend = null;
+
+                if (lastMoveDirection && keyState[lastMoveDirection]) {
+                    moveToSend = lastMoveDirection;
+                } else {
+                    if (keyState['UP']) moveToSend = 'UP';
+                    else if (keyState['DOWN']) moveToSend = 'DOWN';
+                    else if (keyState['LEFT']) moveToSend = 'LEFT';
+                    else if (keyState['RIGHT']) moveToSend = 'RIGHT';
+                    
+                    // Update the "last direction" to this new one
+                    lastMoveDirection = moveToSend;
+                }
+
+                if (moveToSend) {
+                    await eel.submit_move(moveToSend)();
+                }
+
+                gameState = await eel.game_tick()();
+
+                drawGame();
+                updatePlayerList();
+                
+                if (gameState.game_over) {
+                    showGameOver();
+                }
+
+            } catch (error) {
+                console.error('Error in game loop:', error);
+                clearInterval(gameLoopInterval);
+                window.removeEventListener('keydown', handleKeydown);
+                window.removeEventListener('keyup', handleKeyup);
+            }
+        }
+
+        // --- DRAWING & EVENT FUNCTIONS (No changes) ---
+
+        function drawGame() {
+            if (!gameState) return;
+
+            // Check if the countdown is active
+            const isCountdown = countdownOverlay.style.display === 'flex';
+            
+            // Clear canvas
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw all players and trails
+            for (const player of gameState.players) {
+                ctx.fillStyle = player.color;
+                
+                // Draw trail
+                for (const segment of player.trail) {
+                    ctx.fillRect(segment[0] * CELL_SIZE, segment[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                }
+                
+                // Draw head (if alive)
+                if (player.is_alive) {
+                    // Make head slightly brighter
+                    ctx.fillStyle = lightenColor(player.color, 20);
+                    ctx.fillRect(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                }
+            }
+
+            // --- NEW: Draw Start Indicators during Countdown ---
+            if (isCountdown) {
+                for (const player of gameState.players) {
+                    const x = player.x * CELL_SIZE;
+                    const y = player.y * CELL_SIZE;
+
+                    // 1. Highlight Human Player with a white box
+                    if (player.name === 'human') {
+                        ctx.strokeStyle = '#FFFFFF';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(x - 1, y - 1, CELL_SIZE + 2, CELL_SIZE + 2); // A slightly larger box
+                    }
+                    
+                    // 2. Draw Direction Arrows for all players
+                    const x_center = x + (CELL_SIZE / 2);
+                    const y_center = y + (CELL_SIZE / 2);
+                    const arrowSize = CELL_SIZE * 0.3; // Size of the arrow
+                    
+                    ctx.fillStyle = '#FFFFFF'; // White arrow
+                    ctx.beginPath();
+                    
+                    switch (player.direction) {
+                        case 'UP':
+                            ctx.moveTo(x_center, y_center - arrowSize);
+                            ctx.lineTo(x_center + arrowSize, y_center + arrowSize);
+                            ctx.lineTo(x_center - arrowSize, y_center + arrowSize);
+                            break;
+                        case 'DOWN':
+                            ctx.moveTo(x_center, y_center + arrowSize);
+                            ctx.lineTo(x_center + arrowSize, y_center - arrowSize);
+                            ctx.lineTo(x_center - arrowSize, y_center - arrowSize);
+                            break;
+                        case 'LEFT':
+                            ctx.moveTo(x_center - arrowSize, y_center);
+                            ctx.lineTo(x_center + arrowSize, y_center - arrowSize);
+                            ctx.lineTo(x_center + arrowSize, y_center + arrowSize);
+                            break;
+                        case 'RIGHT':
+                            ctx.moveTo(x_center + arrowSize, y_center);
+                            ctx.lineTo(x_center - arrowSize, y_center - arrowSize);
+                            ctx.lineTo(x_center - arrowSize, y_center + arrowSize);
+                            break;
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+        }
+
+        function updatePlayerList() {
+            playerListUl.innerHTML = ''; // Clear list
+            for (const player of gameState.players) {
+                const li = document.createElement('li');
+                li.className = 'player-item';
+                if (!player.is_alive) {
+                    li.classList.add('dead');
+                }
+                
+                const colorBox = document.createElement('div');
+                colorBox.className = 'player-color-box';
+                colorBox.style.backgroundColor = player.color;
+                
+                const nameSpan = document.createElement('span');
+
+                // Check if this is the human player
+                if (player.name === 'human') {
+                    nameSpan.textContent = 'human (You)'; // Removed arrow
+                    li.style.fontWeight = 'bold'; // Make it bold
+                    li.style.border = '1px solid #fff'; // Add a border
+                    li.style.borderRadius = '4px';
+                } else {
+                    // Fixed typo 'nameSPan' -> 'nameSpan'
+                    nameSpan.textContent = player.name.replace('_bot', ''); // Removed arrow
+                }
+                
+                li.appendChild(colorBox);
+                li.appendChild(nameSpan);
+                playerListUl.appendChild(li);
+            }
+        }
+        
+        function handleKeydown(e) {
+            if (!gameState || gameState.game_over) return;
+            let direction = null;
+            switch(e.key) {
+                case 'ArrowUp': direction = 'UP'; break;
+                case 'ArrowDown': direction = 'DOWN'; break;
+                case 'ArrowLeft': direction = 'LEFT'; break;
+                case 'ArrowRight': direction = 'RIGHT'; break;
+                default: return;
+            }
+            e.preventDefault();
+            
+            keyState[direction] = true;
+            lastMoveDirection = direction;
+        }
+
+        function handleKeyup(e) {
+            let direction = null;
+            switch(e.key) {
+                case 'ArrowUp': direction = 'UP'; break;
+                case 'ArrowDown': direction = 'DOWN'; break;
+                case 'ArrowLeft': direction = 'LEFT'; break;
+                case 'ArrowRight': direction = 'RIGHT'; break;
+                default: return;
+            }
+            keyState[direction] = false;
+        }
+
+        function showGameOver() {
+            if (gameLoopInterval) {
+                clearInterval(gameLoopInterval);
+                gameLoopInterval = null;
+            }
+            window.removeEventListener('keydown', handleKeydown);
+            window.removeEventListener('keyup', handleKeyup);
+            countdownOverlay.style.display = 'none';
+
+            if (gameState.winner === 'DRAW') {
+                winnerText.textContent = "IT'S A DRAW!";
+                winnerText.style.color = '#FFFFFF';
+            } else {
+                const winnerPlayer = gameState.players[gameState.winner];
+                winnerText.textContent = `${winnerPlayer.name.replace('_bot', '')} WINS!`;
+                winnerText.style.color = winnerPlayer.color;
+            }
+            gameOverMessage.style.display = 'flex';
+        }
+
+        // Helper function (no changes)
+        function lightenColor(color, percent) {
+            let num = parseInt(color.replace("#",""), 16),
+            amt = Math.round(2.55 * percent),
+            R = (num >> 16) + amt,
+            B = (num >> 8 & 0x00FF) + amt,
+            G = (num & 0x0000FF) + amt;
+            return "#" + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (B<255?B<1?0:B:255)*0x100 + (G<255?G<1?0:G:255)).toString(16).slice(1);
+        }
+
+    </script>
+</body>
+</html>
