@@ -1,5 +1,12 @@
+# PyInstaller
+/dist/
+/build/
+*.spec
+
 # Python
 __pycache__/
 *.pyc
-.env
-venv/
+
+# OS files
+.DS_Store
+Thumbs.db
